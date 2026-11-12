@@ -1,30 +1,34 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import {
   ArrowRight,
+  BatteryCharging,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
   CreditCard,
   Headphones,
+  HardDrive,
   Heart,
-  Menu,
+  Keyboard,
+  Laptop,
+  Monitor,
+  Moon,
   Package,
+  Printer,
+  Router,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   ShoppingCart,
   Star,
   Truck,
   UserRound,
+  Sun,
+  X,
 } from 'lucide-react'
 import './App.css'
 import logo from './assets/logo(1).png'
-
-const navItems = [
-  { href: '#home', label: 'Home' },
-  { href: '#shop', label: 'Shop' },
-  { href: '#about', label: 'About' },
-  { href: '#contact', label: 'Contact' },
-]
 
 const brands = ['Apple', 'Dell', 'HP', 'Lenovo', 'Asus', 'Acer', 'Samsung', 'Canon', 'Epson']
 
@@ -170,6 +174,11 @@ const recentViews = [
   { name: 'HP EliteBook', price: 'RWF 999,000', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&q=80' },
 ]
 
+const productCategories = Array.from(new Set(products.map((product) => product.category)))
+const demoCategories = ['Networking Gear', 'Storage', 'Printers', 'Power Backup']
+const categories = Array.from(new Set([...productCategories, ...demoCategories]))
+const productBrands = Array.from(new Set(products.map((product) => product.brand)))
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-RW', {
     style: 'currency',
@@ -177,7 +186,73 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+function ProductCard({ product }: { product: typeof products[number] }) {
+  const isOutOfStock = product.stockTone === 'out-stock'
+  const stockLabel = isOutOfStock
+    ? 'Out of stock'
+    : product.stockTone === 'low-stock'
+      ? 'Only 1 left'
+      : 'In stock'
+  const message = isOutOfStock
+    ? `When will ${product.name} be back in stock?`
+    : product.name
+  const whatsappUrl = `https://wa.me/250788201604?text=${encodeURIComponent(message)}`
+
+  return (
+    <article className="product-card">
+      <div className="product-image-wrap">
+        <a className="product-image-link" href={`#product/${product.id}`} aria-label={`View ${product.name}`}>
+          {product.image ? (
+            <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+          ) : (
+            <span className="product-image-placeholder" role="img" aria-label={product.name} />
+          )}
+        </a>
+        <span className="product-category-label">{product.category}</span>
+      </div>
+      <div className="card-body">
+        <p className={`product-stock-status ${product.stockTone}`}>
+          <span className="product-stock-dot" aria-hidden="true" />
+          {stockLabel}
+        </p>
+        <h4 className="product-card-name">
+          <a className="product-title-link" href={`#product/${product.id}`}>{product.name}</a>
+        </h4>
+        <p className="product-key-specs">
+          {[product.specs.processor, product.specs.memory, product.specs.storage].filter(Boolean).join(' / ')}
+        </p>
+        <div className="product-card-divider" />
+        <div className="product-card-bottom">
+          <div className="product-card-prices">
+            <p className="product-card-price">
+              {new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(product.price)} RWF
+            </p>
+            <p className="product-card-price-meta">
+              <del>{new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(product.originalPrice)} RWF</del>
+              <span>-{product.discount}%</span>
+            </p>
+            <p className="product-card-warranty">{product.specs.warranty}</p>
+          </div>
+          <a
+            className={`product-card-order ${isOutOfStock ? 'is-out-of-stock' : ''}`}
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {isOutOfStock ? 'Ask for restock date' : 'Order on WhatsApp'}
+          </a>
+        </div>
+      </div>
+    </article>
+  )
+}
+
 function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = window.localStorage.getItem('ismahub-theme')
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedBrand, setSelectedBrand] = useState('All')
@@ -187,9 +262,51 @@ function App() {
   const [sortBy, setSortBy] = useState('featured')
   const [selectedProduct, setSelectedProduct] = useState(products[0])
   const [heroIndex, setHeroIndex] = useState(0)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isHeaderCompact, setIsHeaderCompact] = useState(false)
+  const [isBrandMenuOpen, setIsBrandMenuOpen] = useState(false)
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const filtersToggleRef = useRef<HTMLButtonElement>(null)
+  const filtersCloseRef = useRef<HTMLButtonElement>(null)
   const [cartItems, setCartItems] = useState<number[]>([])
   const [favorites, setFavorites] = useState<number[]>([])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('ismahub-theme', theme)
+  }, [theme])
+
+  useEffect(() => {
+    if (window.location.pathname === '/' && window.location.hash === '#home') {
+      window.history.replaceState(null, '', '/home')
+    }
+  }, [])
+
+  useEffect(() => {
+    const updateHeaderSize = () => setIsHeaderCompact(window.scrollY > 24)
+
+    updateHeaderSize()
+    window.addEventListener('scroll', updateHeaderSize, { passive: true })
+    return () => window.removeEventListener('scroll', updateHeaderSize)
+  }, [])
+
+  useEffect(() => {
+    if (!isFiltersOpen) return
+
+    const previousOverflow = document.body.style.overflow
+    const filtersToggle = filtersToggleRef.current
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFiltersOpen(false)
+    }
+
+    filtersCloseRef.current?.focus()
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+      filtersToggle?.focus()
+    }
+  }, [isFiltersOpen])
 
   const heroProducts = products.slice(0, 3)
   const activeHeroProduct = heroProducts[heroIndex]
@@ -210,12 +327,6 @@ function App() {
     setCartItems((items) => [...items, productId])
   }
 
-  const toggleFavorite = (productId: number) => {
-    setFavorites((items) =>
-      items.includes(productId) ? items.filter((id) => id !== productId) : [...items, productId],
-    )
-  }
-
   const clearFilters = () => {
     setSearch('')
     setSelectedCategory('All')
@@ -229,6 +340,24 @@ function App() {
   const [activePanel, setActivePanel] = useState<'none' | 'cart' | 'favorites'>('none')
   const [pageView, setPageView] = useState<'home' | 'cart' | 'favorites' | 'product'>('home')
 
+  useEffect(() => {
+    const syncProductRoute = () => {
+      const match = window.location.hash.match(/^#product\/(\d+)$/)
+      const product = match ? products.find((item) => item.id === Number(match[1])) : undefined
+
+      if (product) {
+        setSelectedProduct(product)
+        setPageView('product')
+      } else {
+        setPageView((currentView) => currentView === 'product' ? 'home' : currentView)
+      }
+    }
+
+    syncProductRoute()
+    window.addEventListener('hashchange', syncProductRoute)
+    return () => window.removeEventListener('hashchange', syncProductRoute)
+  }, [])
+
   const viewCartPage = () => {
     setActivePanel('none')
     setPageView('cart')
@@ -239,9 +368,42 @@ function App() {
     setPageView('favorites')
   }
 
+  const navigateHome = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault()
+    if (window.location.pathname !== '/home' || window.location.hash) {
+      window.history.pushState(null, '', '/home')
+    }
+    setPageView('home')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const viewProductPage = (product: typeof products[number]) => {
     setSelectedProduct(product)
     setPageView('product')
+    if (window.location.hash !== `#product/${product.id}`) {
+      window.location.hash = `product/${product.id}`
+    }
+  }
+
+  const returnToShop = () => {
+    setPageView('home')
+    if (window.location.hash.startsWith('#product/')) {
+      window.location.hash = 'shop'
+    }
+  }
+
+  const selectCategory = (category: string) => {
+    setSelectedCategory(category)
+    setPageView('home')
+    window.location.hash = 'shop'
+  }
+
+  const selectBrand = (brand: string) => {
+    setSelectedBrand(brand)
+    setSelectedCategory('All')
+    setPageView('home')
+    setIsBrandMenuOpen(false)
+    window.location.hash = 'shop'
   }
 
   const cartProducts = useMemo(() => {
@@ -270,8 +432,6 @@ function App() {
   const removeFromFavorites = (productId: number) => {
     setFavorites((items) => items.filter((id) => id !== productId))
   }
-
-  const isFavorite = (productId: number) => favorites.includes(productId)
 
   const cartCount = cartItems.length
   const favoriteCount = favorites.length
@@ -319,8 +479,15 @@ function App() {
     })
   }, [availability, priceLimit, rating, search, selectedBrand, selectedCategory, sortBy])
 
+  const groupedProducts = categories
+    .map((category) => ({
+      category,
+      products: filteredProducts.filter((product) => product.category === category),
+    }))
+    .filter((group) => group.products.length > 0)
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       <div className="announcement-bar">
         <div className="container announcement-content">
           <span>🚚 Free delivery offers on selected orders</span>
@@ -329,27 +496,25 @@ function App() {
         </div>
       </div>
 
-      <header className="site-header" id="home">
+      <header className={`site-header ${isHeaderCompact ? 'is-compact' : ''}`} id="home">
         <div className="container header-inner">
-          <a className="brand-box" href="#home">
-            <img src={logo} alt="ISMAHUB logo" className="brand-logo" />
-            <div>
-              <p className="brand-kicker">ISMAHUB</p>
-              <h1 className="brand-title">Your Hub For Quality Goods</h1>
-            </div>
-          </a>
+          <div className="header-top-row">
+            <a className="brand-box" href="/home" onClick={navigateHome}>
+              <img src={logo} alt="ISMAHUB logo" className="brand-logo" />
+              <div>
+                <p className="brand-kicker">ISMAHUB</p>
+                <h1 className="brand-title">Your Hub For Quality Goods</h1>
+              </div>
+            </a>
 
-          <nav className="main-nav" aria-label="Primary navigation">
-            {navItems.map((item) => (
-              <a key={item.href} href={item.href} className="nav-link">
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="header-actions">
-            <button className="icon-button" aria-label="Search">
-              <Search size={18} />
+            <div className="header-actions">
+            <button
+              className="icon-button theme-toggle"
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              aria-pressed={theme === 'dark'}
+              onClick={() => setTheme((currentTheme) => currentTheme === 'light' ? 'dark' : 'light')}
+            >
+              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
             <button className="icon-button" aria-label="Favorites" onClick={() => setActivePanel(activePanel === 'favorites' ? 'none' : 'favorites')}>
               <Heart size={18} />
@@ -363,26 +528,113 @@ function App() {
               <UserRound size={18} />
               Login / Register
             </button>
-            <button className="menu-button" aria-label="Menu" onClick={() => setIsMenuOpen((open) => !open)}>
-              <Menu size={18} />
-            </button>
+            </div>
           </div>
-          {isMenuOpen && (
-            <div className="mobile-nav-overlay" role="dialog" aria-modal="true">
-              <div className="mobile-nav-panel">
-                <button className="mobile-nav-close" onClick={() => setIsMenuOpen(false)} aria-label="Close menu">
-                  ✕
+
+          <form
+            className="header-search"
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault()
+              window.location.hash = 'shop'
+            }}
+          >
+            <Search size={20} aria-hidden="true" />
+            <input
+              id="header-search"
+              type="search"
+              aria-label="Search products"
+              placeholder="Search products"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <button type="submit" aria-label="Search products">
+              <Search size={18} aria-hidden="true" />
+            </button>
+          </form>
+
+          <nav className="main-nav" aria-label="Primary navigation">
+            <div className="category-nav-list" role="group" aria-label="Categories">
+              {categories.map((category) => {
+              const CategoryIcon = category === 'Laptops'
+                ? Laptop
+                : category === 'Displays'
+                  ? Monitor
+                  : category === 'Audio'
+                    ? Headphones
+                    : category === 'Accessories'
+                      ? Keyboard
+                      : category === 'Networking Gear'
+                        ? Router
+                        : category === 'Storage'
+                          ? HardDrive
+                          : category === 'Printers'
+                            ? Printer
+                            : category === 'Power Backup'
+                              ? BatteryCharging
+                              : Package
+
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  className={`category-nav-link ${selectedCategory === category ? 'active' : ''}`}
+                  aria-current={selectedCategory === category ? 'true' : undefined}
+                  onClick={() => selectCategory(category)}
+                >
+                  <CategoryIcon size={20} aria-hidden="true" />
+                  <span>{category}</span>
                 </button>
-                <nav className="mobile-nav-links" aria-label="Mobile navigation">
-                  {navItems.map((item) => (
-                    <a key={item.href} href={item.href} onClick={() => setIsMenuOpen(false)}>
-                      {item.label}
-                    </a>
-                  ))}
-                </nav>
+              )
+              })}
+            </div>
+            <div
+              className="brand-nav-group"
+              data-open={isBrandMenuOpen}
+              onPointerEnter={() => setIsBrandMenuOpen(true)}
+              onPointerLeave={() => setIsBrandMenuOpen(false)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setIsBrandMenuOpen(false)
+                  event.currentTarget.querySelector('button')?.blur()
+                }
+              }}
+            >
+              <button
+                type="button"
+                className={`category-nav-link brand-nav-trigger ${selectedBrand !== 'All' ? 'active' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={isBrandMenuOpen}
+                aria-controls="header-brand-menu"
+                onClick={() => setIsBrandMenuOpen(true)}
+              >
+                <span>Brands</span>
+                <ChevronDown size={16} aria-hidden="true" />
+              </button>
+              <span className="brand-nav-label">Brands</span>
+              <div className="brand-menu-list" id="header-brand-menu" role="menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={selectedBrand === 'All' ? 'selected' : ''}
+                  onClick={() => selectBrand('All')}
+                >
+                  All brands
+                </button>
+                {productBrands.map((brand) => (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    key={brand}
+                    className={selectedBrand === brand ? 'selected' : ''}
+                    onClick={() => selectBrand(brand)}
+                  >
+                    {brand}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+          </nav>
         </div>
       </header>
 
@@ -405,7 +657,7 @@ function App() {
                   <>
                     {cartProducts.map(({ product, quantity }) => (
                       <div className="panel-item" key={product.id}>
-                        <img src={product.image} alt={product.name} />
+                        <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                         <div className="panel-item-info">
                           <strong>{product.name}</strong>
                           <span>{product.brand}</span>
@@ -428,7 +680,7 @@ function App() {
                 <>
                   {favoriteProducts.map((product) => (
                     <div className="panel-item" key={product.id}>
-                      <img src={product.image} alt={product.name} />
+                      <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                       <div className="panel-item-info">
                         <strong>{product.name}</strong>
                         <span>{product.brand}</span>
@@ -461,7 +713,7 @@ function App() {
       <main className="page-shell">
         {pageView !== 'home' && (
           <div className="page-action-bar">
-            <button className="button button-secondary small" onClick={() => setPageView('home')}>
+            <button className="button button-secondary small" onClick={returnToShop}>
               Back to shop
             </button>
           </div>
@@ -471,105 +723,106 @@ function App() {
           <>
             <section className="hero-section reveal-on-scroll">
               <div className="hero-copy hero-copy-minimal">
-            <p className="eyebrow">Curated tech essentials</p>
-            <div className="hero-carousel">
-              <button className="carousel-nav prev" onClick={() => moveHero('prev')} aria-label="Previous product">
-                <ChevronLeft size={20} />
-              </button>
-              <div className="carousel-track">
-                {heroProducts.map((product, index) => (
-                  <button
-                    type="button"
-                    key={product.id}
-                    className={`carousel-card ${index === heroIndex ? 'active' : ''}`}
-                    onClick={() => selectHeroProduct(product, index)}
-                  >
-                    <div className="carousel-card-image" style={{ backgroundImage: `url(${product.image})` }} />
-                    <div className="carousel-card-info">
-                      <strong>{product.name}</strong>
-                      <span>{formatCurrency(product.price)}</span>
-                    </div>
-                  </button>
-                ))}
+                <p className="eyebrow">Curated tech essentials</p>
+                <h2 className="hero-slogan">Your hub of quality goods.</h2>
+                <div className="hero-actions">
+                  <a href="#shop" className="button button-primary">
+                    Explore collection <ArrowRight size={18} />
+                  </a>
+                </div>
               </div>
-              <button className="carousel-nav next" onClick={() => moveHero('next')} aria-label="Next product">
-                <ChevronRight size={20} />
-              </button>
-            </div>
-            <div className="hero-actions">
-              <a href="#shop" className="button button-primary">
-                Explore collection <ArrowRight size={18} />
-              </a>
-            </div>
-          </div>
 
-          <div className="hero-panel hero-poster-panel">
-            <div className="hero-panel-image" style={{ backgroundImage: `url(${activeHeroProduct.image})` }} />
-            <div className="hero-panel-content">
-              <p className="eyebrow">Selected product</p>
-              <h3>{activeHeroProduct.name}</h3>
-              <p>{formatCurrency(activeHeroProduct.price)}</p>
-            </div>
-          </div>
-        </section>
+              <div className="hero-carousel">
+                <button className="carousel-nav prev" onClick={() => moveHero('prev')} aria-label="Previous product">
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="carousel-track">
+                  {heroProducts.map((product, index) => (
+                    <button
+                      type="button"
+                      key={product.id}
+                      className={`carousel-card ${index === heroIndex ? 'active' : ''}`}
+                      onClick={() => selectHeroProduct(product, index)}
+                    >
+                      <img className="carousel-card-image" src={product.image} alt={product.name} loading="lazy" decoding="async" />
+                      <div className="carousel-card-info">
+                        <strong>{product.name}</strong>
+                        <span>{formatCurrency(product.price)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <button className="carousel-nav next" onClick={() => moveHero('next')} aria-label="Next product">
+                  <ChevronRight size={20} />
+                </button>
+              </div>
 
-        <section className="section-block reveal-on-scroll" id="shop">
+              <div className="hero-panel hero-poster-panel">
+                <img className="hero-panel-image" src={activeHeroProduct.image} alt={activeHeroProduct.name} decoding="async" />
+                <div className="hero-panel-content">
+                  <p className="eyebrow">Selected product</p>
+                  <h3>{activeHeroProduct.name}</h3>
+                  <p>{formatCurrency(activeHeroProduct.price)}</p>
+                </div>
+              </div>
+          </section>
+
+        <section className={`section-block reveal-on-scroll ${isFiltersOpen ? 'filters-open' : ''}`} id="shop">
           <div className="section-heading">
             <div>
               <p className="eyebrow">Featured products</p>
               <h3>Discover best sellers and standout picks</h3>
             </div>
+            <button
+              type="button"
+              className="filters-toggle"
+              ref={filtersToggleRef}
+              aria-expanded={isFiltersOpen}
+              aria-controls="product-filters"
+              onClick={() => setIsFiltersOpen(true)}
+            >
+              <SlidersHorizontal size={17} aria-hidden="true" />
+              Filters
+            </button>
           </div>
 
           <div className="shop-layout">
-            <div className="product-grid">
-              {filteredProducts.map((product) => (
-                <article className="product-card" key={product.id}>
-                  <div className="product-image-wrap">
-                    <img src={product.image} alt={product.name} />
-                    {product.discount > 0 ? <span className="discount-badge">-{product.discount}%</span> : null}
-                    {product.isNew ? <span className="new-badge">New</span> : null}
-                    <div className="product-overlay">
-                      <button className="icon-button ghost" aria-label="Favorite" onClick={() => toggleFavorite(product.id)}>
-                        <Heart size={16} fill={isFavorite(product.id) ? '#dc2626' : 'none'} color={isFavorite(product.id) ? '#dc2626' : undefined} />
-                      </button>
-                      <button className="icon-button ghost" aria-label="Quick view" onClick={() => setSelectedProduct(product)}>
-                        <Search size={16} />
-                      </button>
-                    </div>
+            <div className="catalog-groups">
+              {groupedProducts.map(({ category, products: categoryProducts }) => (
+                <section className="catalog-category" key={category} aria-labelledby={`category-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                  <h4 className="catalog-category-title" id={`category-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{category}</h4>
+                  <div className="product-grid">
+                    {categoryProducts.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
                   </div>
-                  <div className="card-body">
-                    <p className="product-brand">{product.brand}</p>
-                    <h4>{product.name}</h4>
-                    <div className="rating-row">
-                      <div className="stars">
-                        {Array.from({ length: 5 }, (_, index) => (
-                          <Star key={`${product.id}-${index}`} size={15} className={index < Math.round(product.rating) ? 'star-filled' : ''} />
-                        ))}
-                      </div>
-                      <span>{product.reviewCount} reviews</span>
-                    </div>
-                    <div className="price-row">
-                      <div>
-                        <p className="price">{formatCurrency(product.price)}</p>
-                        <p className="original-price">{formatCurrency(product.originalPrice)}</p>
-                      </div>
-                      <span className={`stock-badge ${product.stockTone}`}>{product.stock}</span>
-                    </div>
-                    <div className="card-actions">
-                      <button className="button button-primary small" onClick={() => addToCart(product.id)}>
-                        Add to cart
-                      </button>
-                      <button className="button button-secondary small" onClick={() => viewProductPage(product)}>
-                        Quick view
-                      </button>
-                    </div>
-                  </div>
-                </article>
+                </section>
               ))}
             </div>
 
-            <aside className="filters-card">
+            <div
+              className={`filters-overlay ${isFiltersOpen ? 'is-open' : ''}`}
+              role={isFiltersOpen ? 'dialog' : undefined}
+              aria-modal={isFiltersOpen || undefined}
+              aria-labelledby={isFiltersOpen ? 'filters-title' : undefined}
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setIsFiltersOpen(false)
+              }}
+            >
+              <div className="filters-dialog">
+                <div className="filters-dialog-header">
+                  <h4 id="filters-title">Filters</h4>
+                  <button
+                    type="button"
+                    className="filters-close"
+                    ref={filtersCloseRef}
+                    aria-label="Close filters"
+                    onClick={() => setIsFiltersOpen(false)}
+                  >
+                    <X size={20} aria-hidden="true" />
+                  </button>
+                </div>
+                <aside className="filters-card" id="product-filters">
               <div className="filter-group">
                 <label htmlFor="search">Search</label>
                 <div className="filter-input">
@@ -581,7 +834,7 @@ function App() {
                 <label htmlFor="category">Category</label>
                 <select id="category" value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
                   <option value="All">All</option>
-                  {Array.from(new Set(products.map((product) => product.category))).map((category) => (
+                  {categories.map((category) => (
                     <option key={category} value={category}>
                       {category}
                     </option>
@@ -592,7 +845,7 @@ function App() {
                 <label htmlFor="brand">Brand</label>
                 <select id="brand" value={selectedBrand} onChange={(event) => setSelectedBrand(event.target.value)}>
                   <option value="All">All</option>
-                  {brands.map((brand) => (
+                  {productBrands.map((brand) => (
                     <option key={brand} value={brand}>
                       {brand}
                     </option>
@@ -633,8 +886,13 @@ function App() {
                 <button type="button" className="button button-secondary small" onClick={clearFilters}>
                   Clear filters
                 </button>
+                <button type="button" className="button button-primary small filters-apply" onClick={() => setIsFiltersOpen(false)}>
+                  Apply filters
+                </button>
               </div>
-            </aside>
+                </aside>
+              </div>
+            </div>
           </div>
         </section>
           </>
@@ -653,7 +911,7 @@ function App() {
                 <>
                   {cartProducts.map(({ product, quantity }) => (
                     <div className="panel-item" key={product.id}>
-                      <img src={product.image} alt={product.name} />
+                      <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                       <div className="panel-item-info">
                         <strong>{product.name}</strong>
                         <span>{product.brand}</span>
@@ -688,7 +946,7 @@ function App() {
               {favoriteProducts.length > 0 ? (
                 favoriteProducts.map((product) => (
                   <div className="panel-item" key={product.id}>
-                    <img src={product.image} alt={product.name} />
+                    <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                     <div className="panel-item-info">
                       <strong>{product.name}</strong>
                       <span>{product.brand}</span>
@@ -722,16 +980,7 @@ function App() {
               </div>
               <div className="product-grid compact-grid">
                 {products.filter((product) => product.isNew).map((product) => (
-                  <article className="product-card" key={`${product.id}-arrival`}>
-                    <div className="product-image-wrap">
-                      <img src={product.image} alt={product.name} />
-                    </div>
-                    <div className="card-body">
-                      <p className="product-brand">{product.brand}</p>
-                      <h4>{product.name}</h4>
-                      <p className="price">{formatCurrency(product.price)}</p>
-                    </div>
-                  </article>
+                  <ProductCard key={`${product.id}-arrival`} product={product} />
                 ))}
               </div>
             </section>
@@ -835,10 +1084,10 @@ function App() {
         {pageView === 'product' && (
           <section className="detail-section reveal-on-scroll">
             <div className="detail-gallery">
-              <img src={selectedProduct.gallery[0]} alt={selectedProduct.name} className="detail-main-image" />
+              <img src={selectedProduct.gallery[0]} alt={selectedProduct.name} className="detail-main-image" loading="lazy" decoding="async" />
               <div className="detail-thumbs">
                 {selectedProduct.gallery.map((image, index) => (
-                  <img key={`${selectedProduct.id}-${index}`} src={image} alt={`${selectedProduct.name} view ${index + 1}`} />
+                  <img key={`${selectedProduct.id}-${index}`} src={image} alt={`${selectedProduct.name} view ${index + 1}`} loading="lazy" decoding="async" />
                 ))}
               </div>
             </div>
@@ -860,7 +1109,7 @@ function App() {
                   <p className="original-price">{formatCurrency(selectedProduct.originalPrice)}</p>
                 </div>
                 <div className="detail-actions">
-                  <button className="button button-primary">Add to cart</button>
+                  <button className="button button-primary" onClick={() => addToCart(selectedProduct.id)}>Add to cart</button>
                   <button className="button button-secondary">Buy now</button>
                 </div>
               </div>
@@ -915,7 +1164,7 @@ function App() {
           </div>
           <div>
             <p className="footer-title">Quick links</p>
-            <a href="#home">Home</a>
+            <a href="/home" onClick={navigateHome}>Home</a>
             <a href="#shop">Shop</a>
             <a href="#about">About</a>
             <a href="#contact">Contact</a>
@@ -931,7 +1180,7 @@ function App() {
             <p className="footer-title">Recently viewed</p>
             {recentViews.map((item) => (
               <div className="recent-item" key={item.name}>
-                <img src={item.image} alt={item.name} />
+                <img src={item.image} alt={item.name} loading="lazy" decoding="async" />
                 <div>
                   <p>{item.name}</p>
                   <span>{item.price}</span>

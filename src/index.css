@@ -1,13 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
+
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Hanken Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #111827;
-  background-color: #ffffff;
+  color: #17213a;
+  background-color: #f4f6fb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+
+  --page: #f4f6fb;
+  --surface: #ffffff;
+  --surface-muted: #edf1f8;
+  --ink: #17213a;
+  --muted: #56627a;
+  --line: #d7deeb;
+  --brand: #087f87;
+  --brand-dark: #07577a;
+  --accent: #f28a18;
+  --good: #17613a;
+  --bad: #a52e37;
 }
 
 * {
@@ -22,13 +37,90 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--page);
+  color: var(--ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
 }
 
 button {
   cursor: pointer;
 }
 
+img {
+  max-width: 100%;
+  display: block;
+}
+
 #root {
   min-height: 100vh;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color: #edf1fc;
+    background-color: #111827;
+    color-scheme: dark;
+
+    --page: #111827;
+    --surface: #182235;
+    --surface-muted: #202c41;
+    --ink: #edf1fc;
+    --muted: #b7c1d4;
+    --line: #354158;
+    --brand: #4bc7c5;
+    --brand-dark: #064664;
+    --accent: #f28a18;
+    --good: #a3e4b7;
+    --bad: #ffafb2;
+  }
+}
+
+:root[data-theme='light'],
+.app-shell[data-theme='light'] {
+  color-scheme: light;
+  --page: #f4f6fb;
+  --surface: #ffffff;
+  --surface-muted: #edf1f8;
+  --ink: #17213a;
+  --muted: #56627a;
+  --line: #d7deeb;
+  --brand: #087f87;
+  --brand-dark: #07577a;
+  --accent: #f28a18;
+  --good: #17613a;
+  --bad: #a52e37;
+}
+
+:root[data-theme='dark'],
+.app-shell[data-theme='dark'] {
+  color-scheme: dark;
+  color: #edf1fc;
+  background-color: #111827;
+  --page: #111827;
+  --surface: #182235;
+  --surface-muted: #202c41;
+  --ink: #edf1fc;
+  --muted: #b7c1d4;
+  --line: #354158;
+  --brand: #4bc7c5;
+  --brand-dark: #064664;
+  --accent: #f28a18;
+  --good: #a3e4b7;
+  --bad: #ffafb2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
