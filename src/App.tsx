@@ -11,7 +11,9 @@ import {
   HardDrive,
   Heart,
   Keyboard,
+  LayoutGrid,
   Laptop,
+  List,
   Monitor,
   Moon,
   Package,
@@ -29,8 +31,8 @@ import {
 } from 'lucide-react'
 import './App.css'
 import logo from './assets/logo(1).png'
-
-const brands = ['Apple', 'Dell', 'HP', 'Lenovo', 'Asus', 'Acer', 'Samsung', 'Canon', 'Epson']
+import { storefrontApi, type StorefrontProduct } from './services/storefrontApi'
+import ManagementLayout from './components/ManagementLayout'
 
 const features = [
   { title: 'Fast Delivery', text: 'Same-day dispatch and doorstep delivery options across Rwanda.', icon: Truck },
@@ -41,7 +43,7 @@ const features = [
 
 const reviews = [
   {
-    name: 'Aline M.',
+    name: 'Niyonkuru Yves.',
     role: 'Operations Lead',
     text: 'The ordering experience felt effortless and the delivery timeline was impressive.',
     rating: 5,
@@ -54,7 +56,7 @@ const reviews = [
   },
 ]
 
-const products = [
+const fallbackProducts = [
   {
     id: 1,
     name: 'MacBook Air M3',
@@ -174,10 +176,10 @@ const recentViews = [
   { name: 'HP EliteBook', price: 'RWF 999,000', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=400&q=80' },
 ]
 
-const productCategories = Array.from(new Set(products.map((product) => product.category)))
+const productCategories = Array.from(new Set(fallbackProducts.map((product) => product.category)))
 const demoCategories = ['Networking Gear', 'Storage', 'Printers', 'Power Backup']
 const categories = Array.from(new Set([...productCategories, ...demoCategories]))
-const productBrands = Array.from(new Set(products.map((product) => product.brand)))
+const productBrands = Array.from(new Set(fallbackProducts.map((product) => product.brand)))
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-RW', {
@@ -186,13 +188,63 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
-function ProductCard({ product }: { product: typeof products[number] }) {
+const numericIdFromUuid = (uuid: string) => {
+  let hash = 0
+  for (let index = 0; index < uuid.length; index += 1) {
+    hash = ((hash << 5) - hash + uuid.charCodeAt(index)) | 0
+  }
+  return Math.abs(hash) + 1000
+}
+
+const mapStorefrontProduct = (product: StorefrontProduct) => {
+  const images = [...product.product_images]
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.sort_order - b.sort_order)
+    .map((image) => image.image_url)
+  const primaryImage = images[0] || 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=900&q=80'
+  const specs = Object.fromEntries(
+    product.product_specifications
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((specification) => [specification.name.toLowerCase(), specification.value]),
+  ) as { processor?: string; memory?: string; storage?: string; warranty?: string }
+  const price = Number(product.sale_price)
+  const originalPrice = product.compare_at_price === null ? price : Number(product.compare_at_price)
+  return {
+    id: numericIdFromUuid(product.id),
+    apiId: product.id,
+    name: product.name,
+    brand: product.product_brands?.name || 'ISMAHUB',
+    category: product.product_categories?.name || 'Other',
+    price,
+    originalPrice,
+    discount: originalPrice > price ? Math.round((1 - price / originalPrice) * 100) : 0,
+    stock: 'Availability on request',
+    stockTone: 'availability-unknown',
+    rating: 0,
+    reviewCount: 0,
+    isNew: true,
+    isFlash: false,
+    image: primaryImage,
+    gallery: images.length ? images : [primaryImage],
+    specs: {
+      processor: specs.processor || 'Not specified',
+      memory: specs.memory || 'Not specified',
+      storage: specs.storage || 'Not specified',
+      warranty: specs.warranty || 'Not specified',
+    },
+  }
+}
+
+function ProductCard({
+  product,
+  isFavorite,
+  onToggleFavorite,
+}: {
+  product: (typeof fallbackProducts[number]) & { apiId?: string }
+  isFavorite: boolean
+  onToggleFavorite: (productId: number) => void
+}) {
   const isOutOfStock = product.stockTone === 'out-stock'
-  const stockLabel = isOutOfStock
-    ? 'Out of stock'
-    : product.stockTone === 'low-stock'
-      ? 'Only 1 left'
-      : 'In stock'
+  const stockLabel = isOutOfStock ? 'Out of stock' : product.stock
   const message = isOutOfStock
     ? `When will ${product.name} be back in stock?`
     : product.name
@@ -209,8 +261,19 @@ function ProductCard({ product }: { product: typeof products[number] }) {
           )}
         </a>
         <span className="product-category-label">{product.category}</span>
+        {product.discount > 0 && <span className="product-discount-badge">{product.discount}% off</span>}
+        <button
+          type="button"
+          className={`product-favorite-button ${isFavorite ? 'is-favorite' : ''}`}
+          aria-label={isFavorite ? `Remove ${product.name} from favorites` : `Add ${product.name} to favorites`}
+          aria-pressed={isFavorite}
+          onClick={() => onToggleFavorite(product.id)}
+        >
+          <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} aria-hidden="true" />
+        </button>
       </div>
       <div className="card-body">
+        <p className="product-card-brand">{product.brand}</p>
         <p className={`product-stock-status ${product.stockTone}`}>
           <span className="product-stock-dot" aria-hidden="true" />
           {stockLabel}
@@ -218,6 +281,13 @@ function ProductCard({ product }: { product: typeof products[number] }) {
         <h4 className="product-card-name">
           <a className="product-title-link" href={`#product/${product.id}`}>{product.name}</a>
         </h4>
+        {product.reviewCount > 0 && (
+          <p className="product-card-rating" aria-label={`${product.rating} out of 5 stars, ${product.reviewCount} reviews`}>
+            <Star size={15} fill="currentColor" aria-hidden="true" />
+            <span>{product.rating.toFixed(1)}</span>
+            <span className="product-card-review-count">({product.reviewCount} reviews)</span>
+          </p>
+        )}
         <p className="product-key-specs">
           {[product.specs.processor, product.specs.memory, product.specs.storage].filter(Boolean).join(' / ')}
         </p>
@@ -227,10 +297,12 @@ function ProductCard({ product }: { product: typeof products[number] }) {
             <p className="product-card-price">
               {new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(product.price)} RWF
             </p>
-            <p className="product-card-price-meta">
-              <del>{new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(product.originalPrice)} RWF</del>
-              <span>-{product.discount}%</span>
-            </p>
+            {product.discount > 0 && (
+              <p className="product-card-price-meta">
+                <del>{new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(product.originalPrice)} RWF</del>
+                <span>-{product.discount}%</span>
+              </p>
+            )}
             <p className="product-card-warranty">{product.specs.warranty}</p>
           </div>
           <a
@@ -248,6 +320,30 @@ function ProductCard({ product }: { product: typeof products[number] }) {
 }
 
 function App() {
+  const [products, setProducts] = useState(fallbackProducts)
+  type HealthStatus = {
+    status: 'ok' | 'configuration_missing' | 'supabase_unreachable'
+    timestamp: string
+    configuration: {
+      supabase_url: boolean
+      supabase_publishable_key: boolean
+      supabase_secret_key: boolean
+    }
+    supabase: { reachable: boolean }
+  }
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [healthError, setHealthError] = useState('')
+  const [catalogCategories, setCatalogCategories] = useState(categories)
+  const [catalogBrands, setCatalogBrands] = useState(productBrands)
+  const [storefrontStatus, setStorefrontStatus] = useState<'loading' | 'live' | 'fallback'>('loading')
+  const [checkoutName, setCheckoutName] = useState('')
+  const [checkoutPhone, setCheckoutPhone] = useState('')
+  const [checkoutAddress, setCheckoutAddress] = useState('')
+  const [checkoutMessage, setCheckoutMessage] = useState('')
+  const [trackingReference, setTrackingReference] = useState('')
+  const [trackingPhone, setTrackingPhone] = useState('')
+  const [trackingResult, setTrackingResult] = useState<string>('')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = window.localStorage.getItem('ismahub-theme')
     if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme
@@ -260,6 +356,8 @@ function App() {
   const [availability, setAvailability] = useState('All')
   const [rating, setRating] = useState(0)
   const [sortBy, setSortBy] = useState('featured')
+  const [productView, setProductView] = useState<'grid' | 'list'>('grid')
+  const [gridColumns, setGridColumns] = useState<2 | 3 | 4>(4)
   const [selectedProduct, setSelectedProduct] = useState(products[0])
   const [heroIndex, setHeroIndex] = useState(0)
   const [isHeaderCompact, setIsHeaderCompact] = useState(false)
@@ -276,6 +374,30 @@ function App() {
   }, [theme])
 
   useEffect(() => {
+    let active = true
+    storefrontApi.products()
+      .then(({ products: liveProducts }) => {
+        if (!active) return
+        if (liveProducts.length === 0) return
+        const mapped = liveProducts.map(mapStorefrontProduct)
+        setProducts(mapped)
+        setSelectedProduct(mapped[0])
+        setCatalogCategories(Array.from(new Set([
+          ...mapped.map((product) => product.category),
+          ...demoCategories,
+        ])))
+        setCatalogBrands(Array.from(new Set(mapped.map((product) => product.brand))))
+        setStorefrontStatus('live')
+      })
+      .catch(() => {
+        if (active) setStorefrontStatus('fallback')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     if (window.location.pathname === '/' && window.location.hash === '#home') {
       window.history.replaceState(null, '', '/home')
     }
@@ -287,7 +409,7 @@ function App() {
     updateHeaderSize()
     window.addEventListener('scroll', updateHeaderSize, { passive: true })
     return () => window.removeEventListener('scroll', updateHeaderSize)
-  }, [])
+  }, [products])
 
   useEffect(() => {
     if (!isFiltersOpen) return
@@ -327,6 +449,12 @@ function App() {
     setCartItems((items) => [...items, productId])
   }
 
+  const toggleFavorite = (productId: number) => {
+    setFavorites((items) =>
+      items.includes(productId) ? items.filter((id) => id !== productId) : [...items, productId],
+    )
+  }
+
   const clearFilters = () => {
     setSearch('')
     setSelectedCategory('All')
@@ -337,7 +465,7 @@ function App() {
     setSortBy('featured')
   }
 
-  const [activePanel, setActivePanel] = useState<'none' | 'cart' | 'favorites'>('none')
+  const [activePanel, setActivePanel] = useState<'none' | 'cart' | 'favorites' | 'health'>('none')
   const [pageView, setPageView] = useState<'home' | 'cart' | 'favorites' | 'product'>('home')
 
   useEffect(() => {
@@ -356,7 +484,7 @@ function App() {
     syncProductRoute()
     window.addEventListener('hashchange', syncProductRoute)
     return () => window.removeEventListener('hashchange', syncProductRoute)
-  }, [])
+  }, [products])
 
   const viewCartPage = () => {
     setActivePanel('none')
@@ -416,11 +544,11 @@ function App() {
       else items.push({ product, quantity: 1 })
     })
     return items
-  }, [cartItems])
+  }, [cartItems, products])
 
   const favoriteProducts = useMemo(
     () => products.filter((product) => favorites.includes(product.id)),
-    [favorites],
+    [favorites, products],
   )
 
   const cartTotal = cartProducts.reduce((sum, entry) => sum + entry.product.price * entry.quantity, 0)
@@ -431,6 +559,79 @@ function App() {
 
   const removeFromFavorites = (productId: number) => {
     setFavorites((items) => items.filter((id) => id !== productId))
+  }
+
+  const testSupabaseConnection = async () => {
+    setHealthLoading(true)
+    setHealthError('')
+    try {
+      const response = await fetch('/api/health', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      const contentType = response.headers.get('content-type') || ''
+      const payload = contentType.includes('application/json')
+        ? await response.json().catch(() => null) as HealthStatus | null
+        : null
+      if (!payload) {
+        if (response.status === 404) {
+          throw new Error('The API route was not found. Start the Vercel API server with npm run dev:api.')
+        }
+        throw new Error('The health endpoint did not return JSON. Run npm run dev:api on port 3000 and open the Vite site.')
+      }
+      setHealthStatus(payload)
+    } catch (error) {
+      setHealthStatus(null)
+      setHealthError(error instanceof Error ? error.message : 'Unable to reach the backend.')
+    } finally {
+      setHealthLoading(false)
+    }
+  }
+
+  const submitCheckout = async () => {
+    if (storefrontStatus !== 'live') {
+      setCheckoutMessage('Checkout is available after the live product catalog loads.')
+      return
+    }
+    if (!checkoutName.trim() || !checkoutPhone.trim()) {
+      setCheckoutMessage('Enter your name and phone number.')
+      return
+    }
+    const items = cartProducts.flatMap(({ product, quantity }) => {
+      if (!('apiId' in product) || typeof product.apiId !== 'string') return []
+      return [{ product_id: product.apiId, quantity }]
+    })
+    if (items.length === 0) {
+      setCheckoutMessage('Your cart could not be validated against the live catalog.')
+      return
+    }
+    try {
+      setCheckoutMessage('Submitting checkout...')
+      const result = await storefrontApi.checkout({
+        customer_name: checkoutName,
+        phone: checkoutPhone,
+        address: checkoutAddress,
+        idempotency_key: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `checkout-${Date.now()}`,
+        items,
+      })
+      setCheckoutMessage(`Order created: ${result.order.reference}`)
+      setCartItems([])
+    } catch (error) {
+      setCheckoutMessage(error instanceof Error ? error.message : 'Unable to submit checkout.')
+    }
+  }
+
+  const submitTracking = async () => {
+    if (!trackingReference.trim() || !trackingPhone.trim()) {
+      setTrackingResult('Enter both the order reference and phone number.')
+      return
+    }
+    try {
+      const result = await storefrontApi.track(trackingReference, trackingPhone)
+      setTrackingResult(`${result.order.reference}: ${result.order.status}`)
+    } catch (error) {
+      setTrackingResult(error instanceof Error ? error.message : 'Unable to track order.')
+    }
   }
 
   const cartCount = cartItems.length
@@ -477,14 +678,11 @@ function App() {
       if (sortBy === 'newest') return Number(b.isNew) - Number(a.isNew)
       return b.rating - a.rating
     })
-  }, [availability, priceLimit, rating, search, selectedBrand, selectedCategory, sortBy])
+  }, [availability, priceLimit, rating, search, selectedBrand, selectedCategory, sortBy, products])
 
-  const groupedProducts = categories
-    .map((category) => ({
-      category,
-      products: filteredProducts.filter((product) => product.category === category),
-    }))
-    .filter((group) => group.products.length > 0)
+  if (window.location.pathname.startsWith('/admin')) {
+    return <ManagementLayout />
+  }
 
   return (
     <div className="app-shell" data-theme={theme}>
@@ -528,6 +726,17 @@ function App() {
               <UserRound size={18} />
               Login / Register
             </button>
+            <a className="staff-portal-link" href="/admin">Staff portal</a>
+            <button
+              className="login-button"
+              type="button"
+              onClick={() => {
+                setActivePanel('health')
+                void testSupabaseConnection()
+              }}
+            >
+              Test connection
+            </button>
             </div>
           </div>
 
@@ -555,7 +764,7 @@ function App() {
 
           <nav className="main-nav" aria-label="Primary navigation">
             <div className="category-nav-list" role="group" aria-label="Categories">
-              {categories.map((category) => {
+              {catalogCategories.map((category) => {
               const CategoryIcon = category === 'Laptops'
                 ? Laptop
                 : category === 'Displays'
@@ -621,7 +830,7 @@ function App() {
                 >
                   All brands
                 </button>
-                {productBrands.map((brand) => (
+                {catalogBrands.map((brand) => (
                   <button
                     type="button"
                     role="menuitem"
@@ -643,8 +852,16 @@ function App() {
           <div className="panel-card" onClick={(event) => event.stopPropagation()}>
             <div className="panel-header">
               <div>
-                <p className="eyebrow">{activePanel === 'cart' ? 'Shopping cart' : 'Favorites'}</p>
-                <h2>{activePanel === 'cart' ? `Cart (${cartCount})` : `Favorites (${favoriteCount})`}</h2>
+                <p className="eyebrow">
+                  {activePanel === 'cart' ? 'Shopping cart' : activePanel === 'favorites' ? 'Favorites' : 'System status'}
+                </p>
+                <h2>
+                  {activePanel === 'cart'
+                    ? `Cart (${cartCount})`
+                    : activePanel === 'favorites'
+                      ? `Favorites (${favoriteCount})`
+                      : 'Supabase connection'}
+                </h2>
               </div>
               <button className="panel-close" onClick={() => setActivePanel('none')} aria-label="Close panel">
                 ✕
@@ -652,7 +869,28 @@ function App() {
             </div>
 
             <div className="panel-content">
-              {activePanel === 'cart' ? (
+              {activePanel === 'health' ? (
+                <div style={{ display: 'grid', gap: '12px', minWidth: 'min(420px, 80vw)' }}>
+                  {healthLoading && <p className="panel-empty">Testing server and Supabase connection...</p>}
+                  {healthError && <p className="panel-empty">{healthError}</p>}
+                  {healthStatus && (
+                    <>
+                      <p className="panel-total">
+                        Status: {healthStatus.status === 'ok' ? 'Connected' : healthStatus.status === 'configuration_missing' ? 'Configuration missing' : 'Supabase unreachable'}
+                      </p>
+                      <p>Backend API: Reachable</p>
+                      <p>Supabase URL configured: {healthStatus.configuration.supabase_url ? 'Yes' : 'No'}</p>
+                      <p>Publishable key configured: {healthStatus.configuration.supabase_publishable_key ? 'Yes' : 'No'}</p>
+                      <p>Supabase REST reachable: {healthStatus.supabase.reachable ? 'Yes' : 'No'}</p>
+                      <p>Secret key configured: {healthStatus.configuration.supabase_secret_key ? 'Yes' : 'No'}</p>
+                      <p>Checked: {new Date(healthStatus.timestamp).toLocaleString()}</p>
+                    </>
+                  )}
+                  <button className="button button-primary" onClick={testSupabaseConnection} disabled={healthLoading}>
+                    Test again
+                  </button>
+                </div>
+              ) : activePanel === 'cart' ? (
                 cartProducts.length > 0 ? (
                   <>
                     {cartProducts.map(({ product, quantity }) => (
@@ -788,16 +1026,67 @@ function App() {
 
           <div className="shop-layout">
             <div className="catalog-groups">
-              {groupedProducts.map(({ category, products: categoryProducts }) => (
-                <section className="catalog-category" key={category} aria-labelledby={`category-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                  <h4 className="catalog-category-title" id={`category-${category.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{category}</h4>
-                  <div className="product-grid">
-                    {categoryProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
-                    ))}
+              <div className="product-list-toolbar">
+                <p className="product-result-count" aria-live="polite">
+                  Showing <strong>{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'product' : 'products'}
+                </p>
+                <div className="product-view-controls">
+                  <div className="product-view-toggle" role="group" aria-label="Product display">
+                    <button
+                      type="button"
+                      className="product-view-button"
+                      aria-label="Grid view"
+                      aria-pressed={productView === 'grid'}
+                      onClick={() => setProductView('grid')}
+                    >
+                      <LayoutGrid size={18} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="product-view-button"
+                      aria-label="List view"
+                      aria-pressed={productView === 'list'}
+                      onClick={() => setProductView('list')}
+                    >
+                      <List size={18} aria-hidden="true" />
+                    </button>
                   </div>
-                </section>
-              ))}
+                  {productView === 'grid' && (
+                    <label className="product-columns-control">
+                      <span>Columns</span>
+                      <select
+                        aria-label="Products per row"
+                        value={gridColumns}
+                        onChange={(event) => {
+                          const columns = Number(event.target.value)
+                          if (columns === 2 || columns === 3 || columns === 4) setGridColumns(columns)
+                        }}
+                      >
+                        <option value={2}>2</option>
+                        <option value={3}>3</option>
+                        <option value={4}>4</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+              </div>
+              {filteredProducts.length > 0 ? (
+                <div
+                  className={`product-grid catalog-product-grid ${productView === 'list' ? 'list-view' : ''}`}
+                  data-columns={gridColumns}
+                >
+                  {filteredProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      isFavorite={favorites.includes(product.id)}
+                      onToggleFavorite={toggleFavorite}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="catalog-empty-state">No products match these filters. Try changing your search or clearing the filters.</p>
+              )}
             </div>
 
             <div
@@ -924,12 +1213,52 @@ function App() {
                   ))}
                   <div className="panel-footer">
                     <p className="panel-total">Total: {formatCurrency(cartTotal)}</p>
-                    <button className="button button-primary">Continue to checkout</button>
+                    <div style={{ display: 'grid', gap: '8px', width: 'min(420px, 100%)' }}>
+                      <input
+                        type="text"
+                        placeholder="Full name"
+                        value={checkoutName}
+                        onChange={(event) => setCheckoutName(event.target.value)}
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Phone number"
+                        value={checkoutPhone}
+                        onChange={(event) => setCheckoutPhone(event.target.value)}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Delivery address"
+                        value={checkoutAddress}
+                        onChange={(event) => setCheckoutAddress(event.target.value)}
+                      />
+                      <button className="button button-primary" onClick={submitCheckout}>
+                        Continue to checkout
+                      </button>
+                      {checkoutMessage && <p className="panel-empty">{checkoutMessage}</p>}
+                    </div>
                   </div>
                 </>
               ) : (
                 <p className="panel-empty">Your cart is empty. Add a product from the shop to see it here.</p>
               )}
+            </div>
+            <div style={{ marginTop: '24px', display: 'grid', gap: '8px', maxWidth: '420px' }}>
+              <p className="eyebrow">Track an order</p>
+              <input
+                type="text"
+                placeholder="Order reference (ORD-000001)"
+                value={trackingReference}
+                onChange={(event) => setTrackingReference(event.target.value)}
+              />
+              <input
+                type="tel"
+                placeholder="Phone number"
+                value={trackingPhone}
+                onChange={(event) => setTrackingPhone(event.target.value)}
+              />
+              <button className="button button-secondary" onClick={submitTracking}>Track order</button>
+              {trackingResult && <p className="panel-empty">{trackingResult}</p>}
             </div>
           </section>
         )}
@@ -980,7 +1309,12 @@ function App() {
               </div>
               <div className="product-grid compact-grid">
                 {products.filter((product) => product.isNew).map((product) => (
-                  <ProductCard key={`${product.id}-arrival`} product={product} />
+                  <ProductCard
+                    key={`${product.id}-arrival`}
+                    product={product}
+                    isFavorite={favorites.includes(product.id)}
+                    onToggleFavorite={toggleFavorite}
+                  />
                 ))}
               </div>
             </section>
@@ -1012,7 +1346,7 @@ function App() {
                 </div>
               </div>
               <div className="brand-grid">
-                {brands.map((brand) => (
+                {catalogBrands.map((brand) => (
                   <div className="brand-card" key={brand}>
                     <p>{brand}</p>
                   </div>
