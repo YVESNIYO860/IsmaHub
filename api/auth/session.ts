@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { readSessionCookie, setSessionCookie, clearSessionCookie } from '../lib/cookies'
-import { sendError } from '../lib/errors'
+import { ApiError, sendError } from '../lib/errors'
 import { createUserClient } from '../lib/supabase'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -17,6 +17,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const supabase = createUserClient(session.accessToken)
     const { data, error } = await supabase.auth.getUser()
     if (error || !data.user) {
+      clearSessionCookie(res)
+      return res.status(401).json({ error: 'Authentication required.' })
+    }
+
+    const { data: staffProfile, error: profileError } = await supabase
+      .from('staff_profiles')
+      .select('id,is_active')
+      .eq('id', data.user.id)
+      .maybeSingle()
+    if (profileError) throw new ApiError(503, 'Unable to verify staff access.')
+    if (!staffProfile || !staffProfile.is_active) {
       clearSessionCookie(res)
       return res.status(401).json({ error: 'Authentication required.' })
     }

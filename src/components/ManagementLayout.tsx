@@ -8,15 +8,21 @@ import {
   ChevronDown,
   ClipboardList,
   CreditCard,
+  Eye,
+  EyeOff,
   FileText,
   LayoutDashboard,
   LogOut,
+  LockKeyhole,
+  Mail,
   Menu,
+  Moon,
   Package,
   RotateCcw,
   Search,
   Settings,
   ShieldCheck,
+  Sun,
   Tags,
   Truck,
   UserRound,
@@ -24,6 +30,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react'
+import logo from '../assets/logo(1).png'
 import ProductManagement from './ProductManagement'
 import './ManagementLayout.css'
 
@@ -40,6 +47,8 @@ type DashboardData = {
 type ApiFailure = {
   error?: string
 }
+
+type StaffTheme = 'light' | 'dark'
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.read' },
@@ -88,12 +97,18 @@ function formatCurrency(value: number) {
 }
 
 export default function ManagementLayout() {
+  const [theme, setTheme] = useState<StaffTheme>(() => {
+    const savedTheme = window.localStorage.getItem('ismahub-staff-theme')
+    if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [activePage, setActivePage] = useState('Dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [navigationSearch, setNavigationSearch] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isCheckingSession, setIsCheckingSession] = useState(true)
@@ -101,6 +116,10 @@ export default function ManagementLayout() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [pageError, setPageError] = useState('')
   const [loginError, setLoginError] = useState('')
+
+  useEffect(() => {
+    window.localStorage.setItem('ismahub-staff-theme', theme)
+  }, [theme])
 
   const filteredNavigation = useMemo(() => {
     const term = navigationSearch.trim().toLowerCase()
@@ -186,28 +205,53 @@ export default function ManagementLayout() {
 
   if (!isAuthenticated) {
     return (
-      <main className="staff-login-page">
-        <a className="staff-login-back" href="/">← Back to storefront</a>
-        <section className="staff-login-card">
-          <div className="staff-login-brand">
-            <span className="staff-brand-mark"><LayoutDashboard size={23} /></span>
-            <span><strong>ISMAHUB</strong><small>STAFF WORKSPACE</small></span>
-          </div>
-          <p className="staff-eyebrow">Secure access</p>
-          <h1>Welcome back</h1>
-          <p className="staff-login-copy">Sign in with your staff account to access store operations.</p>
-          <form onSubmit={submitLogin} className="staff-login-form">
-            <label htmlFor="staff-email">Email address</label>
-            <input id="staff-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
-            <label htmlFor="staff-password">Password</label>
-            <input id="staff-password" type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} />
-            {loginError && <p className="staff-error" role="alert">{loginError}</p>}
-            <button type="submit" className="staff-primary-button" disabled={isSubmitting}>
-              {isSubmitting ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-          <p className="staff-login-footnote">Staff accounts are created by an authorized owner or administrator.</p>
-        </section>
+      <main className={`staff-login-page staff-theme-${theme}`}>
+        <header className="staff-login-topbar">
+          <a className="staff-login-back" href="/">
+            <span className="staff-login-back-icon">←</span> Storefront
+          </a>
+          <ThemeToggle theme={theme} onToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />
+        </header>
+        <div className="staff-login-shell">
+          <section className="staff-login-card" aria-labelledby="staff-login-title">
+            <div className="staff-login-brand">
+              <img src={logo} alt="" className="staff-login-logo" />
+              <span><strong>ISMAHUB</strong><small>STAFF PORTAL</small></span>
+            </div>
+            <div className="staff-login-card-heading">
+              <p className="staff-eyebrow">STAFF ACCESS</p>
+              <h1 id="staff-login-title">Staff sign in</h1>
+              <p className="staff-login-copy">Use your staff account to continue.</p>
+            </div>
+            <form onSubmit={submitLogin} className="staff-login-form">
+              <div className="staff-login-field">
+                <label htmlFor="staff-email">Email address</label>
+                <div className="staff-login-input-wrap">
+                  <Mail size={17} aria-hidden="true" />
+                  <input id="staff-email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@ismahub.com" />
+                </div>
+              </div>
+              <div className="staff-login-field">
+                <label htmlFor="staff-password">Password</label>
+                <div className="staff-login-input-wrap">
+                  <LockKeyhole size={17} aria-hidden="true" />
+                  <input id="staff-password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" />
+                  <button type="button" className="staff-password-toggle" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </div>
+              {loginError && <p className="staff-error" role="alert">{loginError}</p>}
+              <button type="submit" className="staff-primary-button staff-login-submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Signing in…' : 'Sign in to workspace'}
+              </button>
+            </form>
+            <p className="staff-login-footnote">
+              Customer account? <a href="/account">Sign in or create an account</a>
+            </p>
+            <p className="staff-login-account-note">Staff accounts are created by an authorized administrator.</p>
+          </section>
+        </div>
       </main>
     )
   }
@@ -216,7 +260,7 @@ export default function ManagementLayout() {
   const ActiveIcon = activeNavigation.icon
 
   return (
-    <div className={`staff-app ${sidebarCollapsed ? 'staff-sidebar-collapsed' : ''}`}>
+    <div className={`staff-app staff-theme-${theme} ${sidebarCollapsed ? 'staff-sidebar-collapsed' : ''}`}>
       {sidebarOpen && <button className="staff-mobile-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
       <aside className={`staff-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
         <div className="staff-brand">
@@ -273,6 +317,7 @@ export default function ManagementLayout() {
           </div>
           <div className="staff-topbar-actions">
             <a className="staff-view-store" href="/">View storefront</a>
+            <ThemeToggle theme={theme} onToggle={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} />
             <button type="button" className="staff-notification-button" aria-label="Notifications are not configured"><Bell size={18} /><i /></button>
             <span className="staff-topbar-avatar"><UserRound size={17} /></span>
           </div>
@@ -372,6 +417,23 @@ export default function ManagementLayout() {
         </main>
       </div>
     </div>
+  )
+}
+
+function ThemeToggle({ theme, onToggle }: { theme: StaffTheme; onToggle: () => void }) {
+  const nextTheme = theme === 'dark' ? 'light' : 'dark'
+  const Icon = theme === 'dark' ? Sun : Moon
+  return (
+    <button
+      type="button"
+      className="staff-theme-toggle"
+      onClick={onToggle}
+      aria-label={`Switch to ${nextTheme} mode`}
+      title={`Switch to ${nextTheme} mode`}
+    >
+      <Icon size={16} aria-hidden="true" />
+      <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+    </button>
   )
 }
 

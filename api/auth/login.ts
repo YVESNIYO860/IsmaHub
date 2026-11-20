@@ -27,6 +27,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new ApiError(401, 'Invalid email or password.')
     }
 
+    const staffClient = createUserClient(data.session.access_token)
+    const { data: staffProfile, error: profileError } = await staffClient
+      .from('staff_profiles')
+      .select('id,is_active')
+      .eq('id', data.user.id)
+      .maybeSingle()
+    if (profileError) throw new ApiError(503, 'Unable to verify staff access.')
+    if (!staffProfile || !staffProfile.is_active) {
+      await supabase.auth.signOut()
+      throw new ApiError(403, 'This account does not have active staff access.')
+    }
+
     setSessionCookie(res, {
       accessToken: data.session.access_token,
       refreshToken: data.session.refresh_token,

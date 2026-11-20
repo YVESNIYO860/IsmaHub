@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   ArrowRight,
   BatteryCharging,
@@ -33,6 +33,7 @@ import './App.css'
 import logo from './assets/logo(1).png'
 import { storefrontApi, type StorefrontProduct } from './services/storefrontApi'
 import ManagementLayout from './components/ManagementLayout'
+import CustomerAccount from './components/CustomerAccount'
 
 const features = [
   { title: 'Fast Delivery', text: 'Same-day dispatch and doorstep delivery options across Rwanda.', icon: Truck },
@@ -100,11 +101,11 @@ const fallbackProducts = [
     isNew: false,
     isFlash: false,
     image:
-      'https://images.unsplash.com/photo-1527443156517-0b9d5f4f0c4d?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80',
     gallery: [
-      'https://images.unsplash.com/photo-1527443156517-0b9d5f4f0c4d?auto=format&fit=crop&w=900&q=80',
-      'https://images.unsplash.com/photo-1527443156517-0b9d5f4f0c4d?auto=format&fit=crop&w=900&q=80',
-      'https://images.unsplash.com/photo-1527443156517-0b9d5f4f0c4d?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1593642632823-8f785ba67e45?auto=format&fit=crop&w=900&q=80',
     ],
     specs: {
       processor: '4K IPS',
@@ -252,14 +253,13 @@ function ProductCard({
 
   return (
     <article className="product-card">
+      <a className="product-card-link" href={`#product/${product.id}`} aria-label={`View ${product.name}`} />
       <div className="product-image-wrap">
-        <a className="product-image-link" href={`#product/${product.id}`} aria-label={`View ${product.name}`}>
-          {product.image ? (
-            <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
-          ) : (
-            <span className="product-image-placeholder" role="img" aria-label={product.name} />
-          )}
-        </a>
+        {product.image ? (
+          <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+        ) : (
+          <span className="product-image-placeholder" role="img" aria-label={product.name} />
+        )}
         <span className="product-category-label">{product.category}</span>
         {product.discount > 0 && <span className="product-discount-badge">{product.discount}% off</span>}
         <button
@@ -278,9 +278,7 @@ function ProductCard({
           <span className="product-stock-dot" aria-hidden="true" />
           {stockLabel}
         </p>
-        <h4 className="product-card-name">
-          <a className="product-title-link" href={`#product/${product.id}`}>{product.name}</a>
-        </h4>
+        <h4 className="product-card-name">{product.name}</h4>
         {product.reviewCount > 0 && (
           <p className="product-card-rating" aria-label={`${product.rating} out of 5 stars, ${product.reviewCount} reviews`}>
             <Star size={15} fill="currentColor" aria-hidden="true" />
@@ -316,6 +314,75 @@ function ProductCard({
         </div>
       </div>
     </article>
+  )
+}
+
+function ProductGallery({
+  name,
+  images,
+}: {
+  name: string
+  images: string[]
+}) {
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [isZoomed, setIsZoomed] = useState(false)
+  const mainImageRef = useRef<HTMLImageElement>(null)
+  const currentImageIndex = Math.min(selectedImageIndex, images.length - 1)
+
+  const updateZoomOrigin = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const image = mainImageRef.current
+    if (!image) return
+
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const x = ((event.clientX - bounds.left) / bounds.width) * 100
+    const y = ((event.clientY - bounds.top) / bounds.height) * 100
+    image.style.transformOrigin = `${Math.max(0, Math.min(100, x))}% ${Math.max(0, Math.min(100, y))}%`
+  }
+
+  return (
+    <div className="detail-gallery">
+      <div
+        className={`detail-image-viewport ${isZoomed ? 'is-zoomed' : ''}`}
+        role="group"
+        aria-label={`${name} image viewer`}
+        onPointerEnter={(event) => {
+          if (event.pointerType === 'touch') return
+          setIsZoomed(true)
+          updateZoomOrigin(event)
+        }}
+        onPointerMove={(event) => {
+          if (event.pointerType !== 'touch') updateZoomOrigin(event)
+        }}
+        onPointerLeave={() => setIsZoomed(false)}
+      >
+        <img
+          ref={mainImageRef}
+          src={images[currentImageIndex]}
+          alt={name}
+          className="detail-main-image"
+          loading="lazy"
+          decoding="async"
+        />
+        <span className="detail-image-zoom-hint" aria-hidden="true">Hover to zoom</span>
+      </div>
+      <div className="detail-thumbs" role="group" aria-label={`${name} images`}>
+        {images.map((image, index) => (
+          <button
+            key={`${image}-${index}`}
+            type="button"
+            className={index === currentImageIndex ? 'is-selected' : ''}
+            aria-label={`View ${name} image ${index + 1}`}
+            aria-pressed={index === currentImageIndex}
+            onClick={() => {
+              setSelectedImageIndex(index)
+              setIsZoomed(false)
+            }}
+          >
+            <img src={image} alt="" loading="lazy" decoding="async" />
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -680,6 +747,10 @@ function App() {
     })
   }, [availability, priceLimit, rating, search, selectedBrand, selectedCategory, sortBy, products])
 
+  if (window.location.pathname === '/account') {
+    return <CustomerAccount />
+  }
+
   if (window.location.pathname.startsWith('/admin')) {
     return <ManagementLayout />
   }
@@ -722,10 +793,11 @@ function App() {
               <ShoppingCart size={18} />
               {cartCount > 0 && <span className="icon-badge">{cartCount}</span>}
             </button>
-            <button className="login-button">
+            <a className="login-button customer-login-button" href="/account" aria-label="Login or register" title="Login or register">
               <UserRound size={18} />
-              Login / Register
-            </button>
+              <span className="login-label-desktop">Login / Register</span>
+              <span className="login-label-mobile">Login</span>
+            </a>
             <a className="staff-portal-link" href="/admin">Staff portal</a>
             <button
               className="login-button"
@@ -1417,14 +1489,11 @@ function App() {
 
         {pageView === 'product' && (
           <section className="detail-section reveal-on-scroll">
-            <div className="detail-gallery">
-              <img src={selectedProduct.gallery[0]} alt={selectedProduct.name} className="detail-main-image" loading="lazy" decoding="async" />
-              <div className="detail-thumbs">
-                {selectedProduct.gallery.map((image, index) => (
-                  <img key={`${selectedProduct.id}-${index}`} src={image} alt={`${selectedProduct.name} view ${index + 1}`} loading="lazy" decoding="async" />
-                ))}
-              </div>
-            </div>
+            <ProductGallery
+              key={selectedProduct.id}
+              name={selectedProduct.name}
+              images={selectedProduct.gallery}
+            />
 
             <div className="detail-content" id="about">
               <p className="eyebrow">Product details</p>

@@ -31,7 +31,8 @@ export default async function handler(req:VercelRequest,res:VercelResponse){
    if(!privileged)throw new ApiError(503,'Server secret key is required to create staff accounts.')
    const created=await privileged.auth.admin.createUser({
     email:input.email,password:input.password,email_confirm:true,
-    user_metadata:{full_name:typeof b?.full_name==='string'?b.full_name.trim():null}
+    user_metadata:{full_name:typeof b?.full_name==='string'?b.full_name.trim():null},
+    app_metadata:{account_type:'staff'}
    })
    if(created.error||!created.data.user)throw new ApiError(400,'Unable to create staff account.')
    const profile=await privileged
